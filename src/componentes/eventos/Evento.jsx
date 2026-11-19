@@ -1,11 +1,18 @@
-import { use, useState, useEffect } from "react";
+
+import { useState, useEffect } from "react";
+import { Heart } from "lucide-react";
 import DetalhesEvento from "./DetalhesEvento";
 import InscricaoEvento from "./InscricaoEvento";
 import FormCertificado from "./FormCertificado";
 import axios from "axios";
 import { Link } from "react-router-dom";
 
-export default function Evento({ usuario, evento }) {
+export default function Evento({
+    usuario,
+    evento,
+    onToggleFavorito,
+    favoritado
+}) {
     const [detalhes, setDetalhes] = useState(false);
     const [inscricao, setInscricao] = useState(false);
     const [formCertificado, setFormCertificado] = useState(false);
@@ -16,36 +23,38 @@ export default function Evento({ usuario, evento }) {
 
     const abrirDetalhes = (e) => {
         setDetalhes(true);
-    }
+    };
 
     const fecharDetalhes = (e) => {
         setDetalhes(false);
-    }
+    };
 
     const abrirInscricao = (e) => {
         setInscricao(true);
-    }
+    };
 
     const fecharInscricao = (e) => {
         setInscricao(false);
-    }
+    };
 
     const abrirFormCertificado = (e) => {
         setFormCertificado(true);
-    }
+    };
 
     const fecharFormCertificado = (e) => {
         setFormCertificado(false);
-    }
+    };
 
     const verificarInscricao = async () => {
         try {
-            const response = await axios.get(`${BACKEND_URL}/inscricao/${usuario.id}/${evento.id}`);
+            const response = await axios.get(
+                `${BACKEND_URL}/inscricao/${usuario.id}/${evento.id}`
+            );
             setUserInscrito(response.data);
-        } catch(err) {
+        } catch (err) {
             console.log(err);
         }
-    }
+    };
 
     useEffect(() => {
         verificarInscricao();
@@ -56,18 +65,62 @@ export default function Evento({ usuario, evento }) {
             <div
                 className="bg-white rounded-xl shadow-md flex flex-col h-full border-2 border-pink-300 cursor-pointer"
             >
-                <img src={evento.imagem} className="w-full h-40 object-cover rounded-t-xl" alt={evento.titulo} onClick={abrirDetalhes} />
+
+                {/* Imagem do evento e botão de favorito */}
+                <div className="relative">
+
+                    <img
+                        src={evento.imagem}
+                        className="w-full h-40 object-cover rounded-t-xl"
+                        alt={evento.titulo}
+                        onClick={abrirDetalhes}
+                    />
+
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onToggleFavorito(evento);
+                        }}
+                        className="absolute top-3 right-3 bg-white rounded-full p-2 shadow-md hover:scale-110 transition-transform"
+                        title={
+                            favoritado
+                                ? "Remover dos favoritos"
+                                : "Adicionar aos favoritos"
+                        }
+                    >
+                        <Heart
+                            size={22}
+                            className={
+                                favoritado
+                                    ? "fill-pink-500 text-pink-500"
+                                    : "text-gray-500"
+                            }
+                        />
+                    </button>
+
+                </div>
 
                 <div className="flex flex-col p-4">
+
                     <div onClick={abrirDetalhes}>
-                        <h3 className="font-bold text-lg break-words">{evento.titulo}</h3>
-                        <p className="text-pink-600">{evento.data} • {evento.hora}</p>
+
+                        <h3 className="font-bold text-lg break-words">
+                            {evento.titulo}
+                        </h3>
+
+                        <p className="text-pink-600">
+                            {evento.data} • {evento.hora}
+                        </p>
+
                         <p className="text-sm italic text-gray-600 break-words">
                             {(evento.modalidade).toUpperCase()} - {(evento.endereco.cidade)}
                         </p>
+
                     </div>
 
                     <div className="flex mt-4 gap-3 h-full justify-end">
+
                         {
                             userInscrito ? (
                                 <>
@@ -90,12 +143,12 @@ export default function Evento({ usuario, evento }) {
                                             abrirInscricao();
                                         }}
                                     >
-
                                         Participar
                                     </button>
                                 </>
                             )
                         }
+
                     </div>
                 </div>
             </div>

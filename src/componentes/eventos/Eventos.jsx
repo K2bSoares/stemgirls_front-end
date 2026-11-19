@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, Search } from "lucide-react";
+
+import { ArrowLeft, Search, Heart } from "lucide-react";
+
 import CadastroEvento from "./CadastroEvento";
 import Evento from "./Evento";
 import MeusEventos from "./MeusEventos";
@@ -25,19 +27,89 @@ export default function Eventos() {
     const [telaCadastro, setTelaCadastro] = useState(false);
     const [telaMeusEventos, setTelaMeusEventos] = useState(false);
 
-    const [detalhes, setDetalhes] = useState({ status: false, evento: {}, usuario: {}});
+    // Controle da tela de favoritos
+    const [telaFavoritos, setTelaFavoritos] = useState(false);
+
+    // ALTERADO: array de IDs dos eventos favoritos (agora vem do backend)
+    const [favoritos, setFavoritos] = useState([]);
+
+    const [detalhes, setDetalhes] = useState({
+        status: false,
+        evento: {},
+        usuario: {}
+    });
 
     const abrirDetalhes = (status, usuario, evento) => {
-        setDetalhes({status: status, usuario: usuario, evento: evento});
-    }
+        setDetalhes({
+            status: status,
+            usuario: usuario,
+            evento: evento
+        });
+    };
 
     const fecharDetalhes = (e) => {
-        setDetalhes(false);
-    }
+        setDetalhes({
+            status: false,
+            evento: {},
+            usuario: {}
+        });
+    };
 
     let storage = localStorage.getItem("user");
     const [usuario, setUsuario] = useState(JSON.parse(storage));
 
+    // ALTERADO: o useEffect que salvava os favoritos no localStorage foi removido
+
+    // Obtém o identificador do evento
+    const obterIdEvento = (evento) => {
+        return String(evento.id ?? evento._id);
+    };
+
+    // ALTERADO: busca o array de IDs favoritados no backend
+    const listarFavoritos = async () => {
+        if (!usuario?.id) return;
+
+        try {
+            const response = await axios.get(
+                `${BACKEND_URL}/favoritos/${usuario.id}`
+            );
+            setFavoritos(response.data.map(String));
+        } catch (error) {
+            console.log("Erro ao buscar favoritos:", error);
+        }
+    };
+
+    // ALTERADO: adiciona ou remove o favorito no backend
+    const alternarFavorito = async (evento) => {
+        if (!usuario?.id) return;
+
+        const idEvento = obterIdEvento(evento);
+        const anterior = favoritos;
+
+        // atualiza a tela na hora
+        setFavoritos((prev) =>
+            prev.includes(idEvento)
+                ? prev.filter((id) => id !== idEvento)
+                : [...prev, idEvento]
+        );
+
+        try {
+            const response = await axios.post(
+                `${BACKEND_URL}/favoritos/${usuario.id}/${idEvento}`
+            );
+            setFavoritos(response.data.map(String));
+        } catch (error) {
+            console.log("Erro ao alternar favorito:", error);
+            setFavoritos(anterior); // desfaz se o backend falhar
+        }
+    };
+
+    // Verifica se o evento está favoritado
+    const eventoFavoritado = (evento) => {
+        return favoritos.includes(obterIdEvento(evento));
+    };
+
+    // Lista todos os eventos
     const listarEventos = async () => {
         try {
             const response = await axios.get(`${BACKEND_URL}/evento`);
@@ -47,31 +119,48 @@ export default function Eventos() {
         }
     };
 
+    // Lista os eventos do organizador
     const listarMeusEventos = async () => {
         try {
-            const response = await axios.get(`${BACKEND_URL}/evento/organizador/${usuario.id}`);
+            const response = await axios.get(
+                `${BACKEND_URL}/evento/organizador/${usuario.id}`
+            );
             setMeusEventos(response.data);
         } catch (error) {
             console.log("Erro ao buscar meus eventos:", error);
         }
-    }
+    };
 
     const handleSelecionado = (tipo) => {
         setSelecionado(tipo);
-    }
+    };
 
+    // Exclui um evento
     const confirmarExcluirEvento = async () => {
         if (!eventoParaExcluir) return;
+
         try {
-            const res = await fetch(`${BACKEND_BASE}/eventos/${eventoParaExcluir.id}`, {
-                method: "DELETE",
-            });
+            const res = await fetch(
+                `${BACKEND_URL}/eventos/${eventoParaExcluir.id}`,
+                {
+                    method: "DELETE",
+                }
+            );
+
             if (!res.ok) throw new Error();
-            setEventos((prev) => prev.filter((e) => e.id !== eventoParaExcluir.id));
+
+            setEventos((prev) =>
+                prev.filter((e) => e.id !== eventoParaExcluir.id)
+            );
+
             alert("Evento excluído!");
             setEventoParaExcluir(null);
+
         } catch (e) {
-            setEventos((prev) => prev.filter((e) => e.id !== eventoParaExcluir.id));
+            setEventos((prev) =>
+                prev.filter((e) => e.id !== eventoParaExcluir.id)
+            );
+
             alert("Evento removido localmente (backend indisponível).");
             setEventoParaExcluir(null);
         }
@@ -79,29 +168,64 @@ export default function Eventos() {
 
     const confirmarRedirecionamentoEmpresa = () => {
         if (!confirmEmpresa) return;
+
         const link = confirmEmpresa.link;
+
         if (!link) {
             alert("Link inválido.");
             setConfirmEmpresa(null);
             return;
         }
-        const quero = window.confirm("Você será direcionado para uma página externa. Deseja continuar?");
+
+        const quero = window.confirm(
+            "Você será direcionado para uma página externa. Deseja continuar?"
+        );
+
         if (quero) {
             window.open(link, "_blank", "noopener,noreferrer");
         }
+
         setConfirmEmpresa(null);
     };
 
+    // ALTERADO: carrega eventos e favoritos ao abrir a tela
     useEffect(() => {
         listarEventos();
+        listarFavoritos();
     }, []);
+
+    // Filtra os eventos que estão salvos no array de favoritos
+    const eventosFavoritos = eventos.filter((evento) =>
+        favoritos.includes(obterIdEvento(evento))
+    );
+
+    // Exibe o card do evento com seu coração
+    const renderizarEvento = (evento, index) => (
+        <div
+            key={obterIdEvento(evento) ?? index}
+            onClick={() => abrirDetalhes(true, usuario, evento)}
+        >
+            <Evento
+                evento={evento}
+                usuario={usuario}
+                onToggleFavorito={alternarFavorito}
+                favoritado={eventoFavoritado(evento)}
+            />
+        </div>
+    );
 
     return (
         <div className="flex min-h-screen bg-[#FFF6FF] text-gray-800">
+
             <aside className="w-[300px] bg-[#FFF6FF] p-6 flex flex-col gap-6 shadow-lg">
-                <h1 className="font-bold text-black text-[22px] ml-4">Eventos</h1>
+
+                <h1 className="font-bold text-black text-[22px] ml-4">
+                    Eventos
+                </h1>
+
                 <div className="relative ml-4">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+
                     <input
                         type="text"
                         placeholder="Buscar evento..."
@@ -114,129 +238,267 @@ export default function Eventos() {
                 {(usuario?.role == "MODERADOR" || usuario?.role == "EMPRESA") && (
                     <>
                         <div className="mt-2 ml-4">
+
                             <div className="flex justify-between items-center">
-                                <h4 className="text-lg font-semibold">Meus eventos</h4>
+
+                                <h4 className="text-lg font-semibold">
+                                    Meus eventos
+                                </h4>
 
                                 <p
                                     className="px-2 py-1 text-sm rounded-md bg-pink-200 hover:bg-pink-300 text-pink-700 cursor-pointer transition"
                                     onClick={() => {
+                                        listarMeusEventos();
                                         setTelaMeusEventos(true);
                                         setTelaCadastro(false);
+                                        setTelaFavoritos(false);
                                     }}
                                 >
                                     Ver
                                 </p>
+
                             </div>
+
                             <div className="flex flex-col gap-2 max-h-64 overflow-auto pr-2 mt-4">
-                                {Eventos.length === 0 ? (
-                                    <div className="text-sm text-gray-400">Você ainda não criou eventos.</div>
+
+                                {meusEventos.length === 0 ? (
+                                    <div className="text-sm text-gray-400">
+                                        Você ainda não criou eventos.
+                                    </div>
                                 ) : (
-                                    Eventos.map((ev) => (
-                                        <div key={ev.id ?? ev._id} className="flex items-center justify-between bg-white p-2 rounded shadow-sm">
-                                            <div className="truncate text-sm">{ev.titulo}</div>
+                                    meusEventos.map((ev) => (
+                                        <div
+                                            key={ev.id ?? ev._id}
+                                            className="flex items-center justify-between bg-white p-2 rounded shadow-sm"
+                                        >
+                                            <div className="truncate text-sm">
+                                                {ev.titulo}
+                                            </div>
+
                                             <div className="flex gap-1">
+
                                                 <button
                                                     className="px-2 py-1 text-xs bg-yellow-400 rounded"
                                                     onClick={() => {
                                                         setTelaCadastro(true);
                                                         setEventoEditando(ev);
+                                                        setTelaFavoritos(false);
                                                     }}
                                                 >
                                                     Editar
                                                 </button>
+
                                                 <button
                                                     className="px-2 py-1 text-xs bg-red-500 text-white rounded"
                                                     onClick={() => setEventoParaExcluir(ev)}
                                                 >
                                                     Excluir
                                                 </button>
+
                                             </div>
                                         </div>
                                     ))
                                 )}
+
                             </div>
                         </div>
 
                         <button
-                            className="w-full bg-[#F36EC0] text-white font-semibold h-[40px] mb-4 mt-4 rounded-lg hover:shadow-lg transition-all duration-200 transform hover:scale-105 font-medium flex items-center justify-center"
+                            className="w-full bg-[#F36EC0] text-white font-semibold h-[40px] mb-4 mt-4 rounded-lg hover:shadow-lg transition-all duration-200 transform hover:scale-105 flex items-center justify-center"
                             onClick={() => {
                                 setTelaCadastro(true);
                                 setEventoEditando(null);
+                                setTelaFavoritos(false);
                             }}
                         >
                             + Publicar Evento
                         </button>
                     </>
                 )}
+
             </aside>
 
             <main className="flex-1 p-8">
+
                 {telaCadastro ? (
+
                     <CadastroEvento
                         usuario={usuario}
                         eventoEditando={eventoEditando}
-                        fechar={() => { setTelaCadastro(false); setEventoEditando(null); }}
+                        fechar={() => {
+                            setTelaCadastro(false);
+                            setEventoEditando(null);
+                        }}
                     />
+
                 ) : telaMeusEventos ? (
+
                     <>
-                        <ArrowLeft className="m-2 cursor-pointer" onClick={() => setTelaMeusEventos(false)} />
+                        <ArrowLeft
+                            className="m-2 cursor-pointer"
+                            onClick={() => setTelaMeusEventos(false)}
+                        />
+
                         <MeusEventos
                             eventos={meusEventos}
                             usuario={usuario}
                         />
                     </>
+
                 ) : (
+
                     <>
+                        {/* Botão Meus favoritos na parte superior */}
+                        <div className="flex justify-end mb-5">
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setTelaFavoritos(!telaFavoritos);
+                                }}
+                                className="flex items-center gap-2 px-5 py-2 rounded-lg border border-pink-300 text-pink-600 bg-white hover:bg-pink-100 transition font-semibold"
+                            >
+                                <Heart
+                                    size={19}
+                                    className="fill-pink-500 text-pink-500"
+                                />
+
+                                {telaFavoritos ? "Todos os eventos" : "Meus favoritos"}
+
+                                <span className="bg-pink-100 rounded-full px-2 py-0.5 text-sm">
+                                    {favoritos.length}
+                                </span>
+                            </button>
+
+                        </div>
+
                         {detalhes.status ? (
+
                             <DetalhesEvento2
                                 usuario={detalhes.usuario}
                                 evento={detalhes.evento}
                                 fechar={fecharDetalhes}
                             />
+
+                        ) : telaFavoritos ? (
+
+                            <>
+                            <ArrowLeft
+                                    className="m-2 cursor-pointer text-pink-500"
+                                    onClick={() => setTelaFavoritos(false)}
+                                    />
+
+                                <div className="flex items-center gap-2 mb-6">
+
+                                    <Heart
+                                        size={24}
+                                        className="fill-pink-500 text-pink-500"
+                                    />
+
+                                    <h2 className="text-2xl font-bold">
+                                        Meus favoritos
+                                    </h2>
+
+                                </div>
+
+                                {eventosFavoritos.length === 0 ? (
+
+                                    <div className="text-center text-gray-500 mt-16">
+
+                                        <Heart
+                                            size={45}
+                                            className="mx-auto mb-4 text-pink-300"
+                                        />
+
+                                        <p className="text-lg font-semibold">
+                                            Você ainda não tem eventos favoritos.
+                                        </p>
+
+                                        <p className="mt-2">
+                                            Clique no coração dos eventos para salvá-los aqui.
+                                        </p>
+
+                                    </div>
+
+                                ) : (
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-center">
+
+                                        {eventosFavoritos.map((evento, index) =>
+                                            renderizarEvento(evento, index)
+                                        )}
+
+                                    </div>
+
+                                )}
+
+                            </>
+
                         ) : (
+
                             <>
                                 <div className="flex gap-4 mb-6 justify-center">
+
                                     {["Todos", "Ao-vivo", "Presencial", "Remoto"].map((tipo) => (
+
                                         <Categoria
                                             key={tipo}
                                             nome={tipo}
                                             onClick={() => setSelecionado(tipo)}
-                                            className={selecionado === tipo ? `bg-pink-500 text-white` : `bg-transparent text-black hover:text-white hover:bg-pink-500 transition-all duration-200`}
+                                            className={
+                                                selecionado === tipo
+                                                    ? `bg-pink-500 text-white`
+                                                    : `bg-transparent text-black hover:text-white hover:bg-pink-500 transition-all duration-200`
+                                            }
                                         />
+
                                     ))}
+
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 items-center">
-                                    {eventos.map((evento, index) => (
-                                        <div onClick={(e) => abrirDetalhes(true, usuario, evento)}>
-                                            <Evento
-                                                key={index}
-                                                evento={evento}
-                                                usuario={usuario}
-                                            />
-                                        </div>
-                                    ))}
+
+                                    {eventos.map((evento, index) =>
+                                        renderizarEvento(evento, index)
+                                    )}
 
                                     {eventos.length === 0 && (
-                                        <div className="text-center text-gray-500 col-span-full">Nenhum evento encontrado.</div>
+                                        <div className="text-center text-gray-500 col-span-full">
+                                            Nenhum evento encontrado.
+                                        </div>
                                     )}
+
                                 </div>
                             </>
+
                         )}
+
                     </>
+
                 )}
 
                 {confirmEmpresa && (
+
                     <div className="fixed inset-0 z-60 bg-black bg-opacity-50 flex justify-center items-center p-4">
+
                         <div className="bg-white p-6 rounded-xl w-full max-w-md shadow-xl">
-                            <h3 className="text-xl font-bold mb-2">{confirmEmpresa.evento.titulo}</h3>
-                            <p className="mb-4">Você será direcionada para uma página externa de inscrição. Deseja continuar?</p>
+
+                            <h3 className="text-xl font-bold mb-2">
+                                {confirmEmpresa.evento.titulo}
+                            </h3>
+
+                            <p className="mb-4">
+                                Você será direcionada para uma página externa de inscrição. Deseja continuar?
+                            </p>
 
                             <div className="flex flex-col gap-2">
+
                                 <button
                                     onClick={confirmarRedirecionamentoEmpresa}
                                     className="w-full text-white py-2 rounded"
-                                    style={{ background: 'linear-gradient(90deg, #5b3eeb 0%, #c958d0 100%)' }}
+                                    style={{
+                                        background: 'linear-gradient(90deg, #5b3eeb 0%, #c958d0 100%)'
+                                    }}
                                 >
                                     Confirmar e Acessar
                                 </button>
@@ -247,30 +509,47 @@ export default function Eventos() {
                                 >
                                     Cancelar
                                 </button>
+
                             </div>
                         </div>
                     </div>
                 )}
 
                 {eventoParaExcluir && (
+
                     <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+
                         <div className="bg-white p-6 rounded-xl w-96">
-                            <h3 className="font-bold text-lg">Excluir evento</h3>
+
+                            <h3 className="font-bold text-lg">
+                                Excluir evento
+                            </h3>
+
                             <p className="mb-4">
                                 Tem certeza que deseja excluir <b>{eventoParaExcluir.titulo}</b>?
                             </p>
 
                             <div className="flex justify-between">
-                                <button className="bg-gray-300 px-4 py-2 rounded-lg" onClick={() => setEventoParaExcluir(null)}>
+
+                                <button
+                                    className="bg-gray-300 px-4 py-2 rounded-lg"
+                                    onClick={() => setEventoParaExcluir(null)}
+                                >
                                     Cancelar
                                 </button>
-                                <button className="bg-red-500 text-white px-4 py-2 rounded-lg" onClick={confirmarExcluirEvento}>
+
+                                <button
+                                    className="bg-red-500 text-white px-4 py-2 rounded-lg"
+                                    onClick={confirmarExcluirEvento}
+                                >
                                     Excluir
                                 </button>
+
                             </div>
                         </div>
                     </div>
                 )}
+
             </main>
         </div>
     );

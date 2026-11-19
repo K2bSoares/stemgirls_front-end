@@ -6,7 +6,7 @@ import "../../src/index.css";
 import { CirclePlay, Instagram, Linkedin, Github } from 'lucide-react';
 
 import thumbPitch from "../assets/img/ThumbPitch.jpg";
-import videoPitch from "../assets/img/pitch-STEMGirls.mp4";
+//import videoPitch from "../assets/img/pitch-STEMGirls.mp4";
 
 import FotoTalita from "../assets/img/Foto_Talita.jpeg";
 import FotoKauane from "../assets/img/Foto_kauane.jpg";
@@ -194,8 +194,8 @@ export default function SobreNos() {
       </div>
 
       {/* Seção de vídeo */}
-      <div className="mt-[80px] h-[700px] justify-center mx-auto flex flex-col items-center">
-        <h2 className="text-3xl mb-12 font-bold text-center text-gray-800 mb-10">Apresentação</h2>
+       <div className="mt-[80px] h-[700px] justify-center mx-auto flex flex-col items-center">
+         <h2 className="text-3xl mb-12 font-bold text-center text-gray-800 mb-10">Apresentação</h2>
 
         <div className="w-[65%] h-[70%] bg-gray-300 rounded-[20px] overflow-hidden">
           <video
